@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Switch, Router as WouterRouter } from "wouter";
+import { Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Terminal } from "lucide-react";
 
@@ -10,18 +10,22 @@ import { DarkModeToggle } from "@/components/DarkModeToggle";
 import { Dashboard } from "@/pages/Dashboard";
 import { Questions } from "@/pages/Questions";
 import { HeatMap } from "@/pages/HeatMap";
+import { Sheets } from "@/pages/Sheets";
+import { RevisionMode } from "@/pages/RevisionMode";
 
 const queryClient = new QueryClient();
 
-type Tab = "dashboard" | "questions" | "heatmap";
+type Tab = "dashboard" | "questions" | "heatmap" | "sheets" | "revision";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "questions", label: "All Questions" },
+  { id: "sheets", label: "Sheets" },
+  { id: "revision", label: "Revision Mode" },
   { id: "heatmap", label: "Heatmap" },
 ];
 
-function Layout({ children }: { children: React.ReactNode }) {
+function Layout() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
 
   return (
@@ -59,6 +63,8 @@ function Layout({ children }: { children: React.ReactNode }) {
       <main className="flex-1 container mx-auto px-4 py-8 max-w-6xl animate-in fade-in duration-500">
         {activeTab === "dashboard" && <Dashboard />}
         {activeTab === "questions" && <Questions />}
+        {activeTab === "sheets" && <Sheets />}
+        {activeTab === "revision" && <RevisionMode />}
         {activeTab === "heatmap" && <HeatMap />}
       </main>
     </div>
@@ -71,12 +77,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Layout>
-              <Switch>
-                {/* Because it's a SPA with tabs, we handle routing via state inside Layout */}
-                {/* A real router could be used, but instruction says "Single-page app with tab/section navigation (no separate routes needed)" */}
-              </Switch>
-            </Layout>
+            <Layout />
           </WouterRouter>
           <Toaster />
         </TooltipProvider>
