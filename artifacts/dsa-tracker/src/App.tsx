@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Terminal } from "lucide-react";
 
@@ -9,12 +9,20 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { DarkModeToggle } from "@/components/DarkModeToggle";
 import { Dashboard } from "@/pages/Dashboard";
 import { Questions } from "@/pages/Questions";
-import NotFound from "@/pages/not-found";
+import { HeatMap } from "@/pages/HeatMap";
 
 const queryClient = new QueryClient();
 
+type Tab = "dashboard" | "questions" | "heatmap";
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: "dashboard", label: "Dashboard" },
+  { id: "questions", label: "All Questions" },
+  { id: "heatmap", label: "Heatmap" },
+];
+
 function Layout({ children }: { children: React.ReactNode }) {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "questions">("dashboard");
+  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans">
@@ -27,29 +35,21 @@ function Layout({ children }: { children: React.ReactNode }) {
             <span className="font-bold text-lg tracking-tight font-mono">DSA Revision</span>
           </div>
           <div className="flex flex-1 items-center justify-end space-x-4">
-            <nav className="flex items-center space-x-2">
-              <button
-                onClick={() => setActiveTab("dashboard")}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                  activeTab === "dashboard"
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-                data-testid="tab-dashboard"
-              >
-                Dashboard
-              </button>
-              <button
-                onClick={() => setActiveTab("questions")}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                  activeTab === "questions"
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-                data-testid="tab-questions"
-              >
-                All Questions
-              </button>
+            <nav className="flex items-center space-x-1">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                    activeTab === tab.id
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                  data-testid={`tab-${tab.id}`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </nav>
             <DarkModeToggle />
           </div>
@@ -57,7 +57,9 @@ function Layout({ children }: { children: React.ReactNode }) {
       </header>
 
       <main className="flex-1 container mx-auto px-4 py-8 max-w-6xl animate-in fade-in duration-500">
-        {activeTab === "dashboard" ? <Dashboard /> : <Questions />}
+        {activeTab === "dashboard" && <Dashboard />}
+        {activeTab === "questions" && <Questions />}
+        {activeTab === "heatmap" && <HeatMap />}
       </main>
     </div>
   );
