@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
-import { Search, SlidersHorizontal, Edit2, Trash2, CheckCircle } from "lucide-react";
+import { Search, SlidersHorizontal, Edit2, Trash2, CheckCircle, ExternalLink } from "lucide-react";
 import { useQuestions, isDueForRevision, getNextRevisionDate } from "@/hooks/useQuestions";
 import { Question, ConfidenceLevel, Platform, TAGS } from "@/types/question";
 
@@ -192,20 +192,35 @@ export function Questions() {
               filteredAndSorted.map((q) => (
                 <TableRow key={q.id} className={cn(getRowClassName(q.confidenceLevel))}>
                   <TableCell className="font-medium">
-                    <button
-                      className="hover:underline text-left text-primary"
-                      onClick={() => setViewingQuestion(q)}
-                      data-testid={`link-question-${q.id}`}
-                    >
-                      {q.name}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        className="hover:underline text-left text-primary"
+                        onClick={() => setViewingQuestion(q)}
+                        data-testid={`link-question-${q.id}`}
+                      >
+                        {q.name}
+                      </button>
+                      {q.link && (
+                        <a
+                          href={q.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-muted-foreground hover:text-primary transition-colors"
+                          title="Open problem"
+                          data-testid={`link-external-${q.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      )}
+                    </div>
                     <div className="text-xs text-muted-foreground mt-1">{q.platform}</div>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1 max-w-[200px]">
                       {q.tags.slice(0, 3).map(tag => (
-                        <Badge key={tag} variant="outline" className="text-[10px] px-1 py-0 h-4 bg-background/50">
-                          {tag}
+                        <Badge key={tag} variant="outline" className="text-[10px] px-1 py-0 h-4 bg-background/50 font-mono">
+                          #{tag}
                         </Badge>
                       ))}
                       {q.tags.length > 3 && (

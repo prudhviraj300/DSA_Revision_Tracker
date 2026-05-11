@@ -6,6 +6,7 @@ import {
 } from "@/components/ui/dialog";
 import { Question } from "@/types/question";
 import { Badge } from "@/components/ui/badge";
+import { ExternalLink } from "lucide-react";
 
 interface QuestionDetailProps {
   question: Question | null;
@@ -20,8 +21,21 @@ export function QuestionDetail({ question, open, onOpenChange }: QuestionDetailP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold flex items-center gap-2">
-            {question.name}
+          <DialogTitle className="text-xl font-bold flex items-center gap-2 flex-wrap">
+            {question.link ? (
+              <a
+                href={question.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:underline text-primary flex items-center gap-1.5"
+                data-testid="link-detail-problem"
+              >
+                {question.name}
+                <ExternalLink className="h-4 w-4 flex-shrink-0" />
+              </a>
+            ) : (
+              question.name
+            )}
             <Badge variant="outline">{question.platform}</Badge>
           </DialogTitle>
         </DialogHeader>
@@ -31,8 +45,8 @@ export function QuestionDetail({ question, open, onOpenChange }: QuestionDetailP
             <h4 className="text-sm font-medium text-muted-foreground mb-2">Tags</h4>
             <div className="flex flex-wrap gap-2">
               {question.tags.map((tag) => (
-                <Badge key={tag} variant="secondary">
-                  {tag}
+                <Badge key={tag} variant="secondary" className="font-mono">
+                  #{tag}
                 </Badge>
               ))}
             </div>

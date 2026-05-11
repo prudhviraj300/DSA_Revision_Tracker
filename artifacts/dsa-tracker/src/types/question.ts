@@ -6,6 +6,7 @@ export interface Question {
   id: string;
   name: string;
   platform: Platform;
+  link: string;
   tags: string[];
   approach: string;
   timeComplexity: string;

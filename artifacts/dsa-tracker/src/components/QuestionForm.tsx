@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 const formSchema = z.object({
   name: z.string().min(1, "Question name is required"),
   platform: z.enum(["LeetCode", "GFG", "Codeforces", "Other"]),
+  link: z.string().url("Must be a valid URL").or(z.literal("")),
   tags: z.array(z.string()).min(1, "At least one tag is required"),
   approach: z.string(),
   timeComplexity: z.string(),
@@ -74,6 +75,7 @@ export function QuestionForm({ initialData, onSubmit, trigger, open, onOpenChang
     defaultValues: {
       name: initialData?.name || "",
       platform: initialData?.platform || "LeetCode",
+      link: initialData?.link || "",
       tags: initialData?.tags || [],
       approach: initialData?.approach || "",
       timeComplexity: initialData?.timeComplexity || "",
@@ -106,6 +108,20 @@ export function QuestionForm({ initialData, onSubmit, trigger, open, onOpenChang
                   <FormLabel>Question Name</FormLabel>
                   <FormControl>
                     <Input placeholder="Two Sum" {...field} data-testid="input-question-name" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="link"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Problem Link</FormLabel>
+                  <FormControl>
+                    <Input placeholder="https://leetcode.com/problems/two-sum/" {...field} data-testid="input-problem-link" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
