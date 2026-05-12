@@ -1,12 +1,24 @@
-import { useState } from "react";
-import { BookOpen, CheckCircle2, ChevronRight, RotateCcw, ExternalLink } from "lucide-react";
+import { useState, useCallback } from "react";
+import {
+  BookOpen,
+  CheckCircle2,
+  ChevronRight,
+  RotateCcw,
+  ExternalLink,
+  Download,
+  PlusCircle,
+  Sparkles,
+} from "lucide-react";
 import { SHEETS } from "@/data/sheets/index";
 import { Sheet, SheetQuestion, Difficulty } from "@/types/sheet";
 import { useSheetProgress, useAllSheetStats } from "@/hooks/useSheetProgress";
+import { useQuestions } from "@/hooks/useQuestions";
+import { Question, Platform, ConfidenceLevel } from "@/types/question";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +38,37 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+function detectPlatform(link: string): Platform {
+  if (link.includes("leetcode.com")) return "LeetCode";
+  if (link.includes("geeksforgeeks.org")) return "GFG";
+  if (link.includes("codeforces.com")) return "Codeforces";
+  return "Other";
+}
+
+function diffToConfidence(difficulty: Difficulty): ConfidenceLevel {
+  if (difficulty === "Easy") return 3;
+  if (difficulty === "Medium") return 2;
+  return 1;
+}
+
+function sheetQuestionToPersonal(q: SheetQuestion): Omit<Question, "id"> {
+  return {
+    name: q.name,
+    platform: detectPlatform(q.link),
+    link: q.link,
+    tags: [q.topic],
+    approach: "",
+    timeComplexity: "",
+    confidenceLevel: diffToConfidence(q.difficulty),
+    lastRevised: new Date().toISOString(),
+    mistakeNotes: "",
+  };
+}
+
+// ── color maps ────────────────────────────────────────────────────────────────
 
 const SHEET_COLORS: Record<string, string> = {
   blue: "border-blue-400/40 bg-blue-50/30 dark:bg-blue-950/20",
@@ -54,20 +97,65 @@ const DIFF_COLORS: Record<Difficulty, string> = {
   Hard: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400",
 };
 
-function SheetDetailView({
-  sheet,
-  onBack,
-}: {
-  sheet: Sheet;
-  onBack: () => void;
-}) {
+// ── SheetDetailView ───────────────────────────────────────────────────────────
+
+function SheetDetailView({ sheet, onBack }: { sheet: Sheet; onBack: () => void }) {
   const { completedIds, completedCount, toggleComplete, clearProgress } =
     useSheetProgress(sheet.id);
+  const { questions, addQuestion } = useQuestions();
+  const { toast } = useToast();
 
   const [search, setSearch] = useState("");
   const [topicFilter, setTopicFilter] = useState("all");
   const [diffFilter, setDiffFilter] = useState<"all" | Difficulty>("all");
   const [showOnlyPending, setShowOnlyPending] = useState(false);
+
+  const personalNames = new Set(questions.map((q) => q.name.trim().toLowerCase()));
+
+  const isInPersonal = useCallback(
+    (name: string) => personalNames.has(name.trim().toLowerCase()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [questions]
+  );
+
+  const handleToggle = useCallback(
+    (sheetQ: SheetQuestion) => {
+      const wasComplete = completedIds.has(sheetQ.id);
+      toggleComplete(sheetQ.id);
+
+      if (!wasComplete) {
+        // Marking as complete → auto-add to personal questions if not there
+        if (!isInPersonal(sheetQ.name)) {
+          addQuestion(sheetQuestionToPersonal(sheetQ));
+          toast({
+            title: "Added to My Questions",
+            description: `"${sheetQ.name}" was added to All Questions automatically.`,
+          });
+        }
+      }
+    },
+    [completedIds, toggleComplete, isInPersonal, addQuestion, toast]
+  );
+
+  const handleImportAll = useCallback(
+    (questionsToImport: SheetQuestion[]) => {
+      let added = 0;
+      questionsToImport.forEach((q) => {
+        if (!isInPersonal(q.name)) {
+          addQuestion(sheetQuestionToPersonal(q));
+          added++;
+        }
+      });
+      toast({
+        title: added > 0 ? `Imported ${added} questions` : "Nothing new to import",
+        description:
+          added > 0
+            ? `${added} question${added !== 1 ? "s" : ""} added to My Questions.`
+            : "All selected questions are already in your list.",
+      });
+    },
+    [isInPersonal, addQuestion, toast]
+  );
 
   const topics = Array.from(new Set(sheet.questions.map((q) => q.topic))).sort();
   const percent = Math.round((completedCount / sheet.questions.length) * 100);
@@ -89,8 +177,12 @@ function SheetDetailView({
     {} as Record<string, SheetQuestion[]>
   );
 
+  const pendingQuestions = sheet.questions.filter((q) => !completedIds.has(q.id));
+  const notImportedCount = sheet.questions.filter((q) => !isInPersonal(q.name)).length;
+
   return (
     <div className="space-y-6">
+      {/* Breadcrumb */}
       <div className="flex items-center gap-3">
         <button
           onClick={onBack}
@@ -103,37 +195,72 @@ function SheetDetailView({
         <span className="font-semibold">{sheet.name}</span>
       </div>
 
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">{sheet.name}</h2>
           <p className="text-muted-foreground text-sm mt-1">{sheet.description}</p>
         </div>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="outline" size="sm" data-testid="button-reset-progress">
-              <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Reset Progress
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Reset all progress?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will clear all completed marks for {sheet.name}. This cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={clearProgress}
-                className="bg-destructive hover:bg-destructive/90"
-              >
-                Reset
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <div className="flex gap-2 shrink-0">
+          {/* Bulk import button */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" data-testid="button-import-all">
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                Import All
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Import entire sheet?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will add all {notImportedCount} question
+                  {notImportedCount !== 1 ? "s" : ""} from {sheet.name} that are not
+                  already in your personal list. You can then edit each one with your
+                  own notes, approach and confidence rating.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => handleImportAll(sheet.questions)}
+                  data-testid="confirm-import-all"
+                >
+                  Import {notImportedCount} Questions
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" data-testid="button-reset-progress">
+                <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Reset
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reset all progress?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will clear all completed marks for {sheet.name}. Questions
+                  already imported to My Questions will remain there.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={clearProgress}
+                  className="bg-destructive hover:bg-destructive/90"
+                >
+                  Reset
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
 
+      {/* Progress card */}
       <div className="rounded-xl border bg-card p-4 shadow-sm">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium">
@@ -142,21 +269,25 @@ function SheetDetailView({
           <span className="text-sm font-bold text-primary">{percent}%</span>
         </div>
         <Progress value={percent} className={cn("h-2.5", PROGRESS_COLORS[sheet.color])} />
-        <div className="flex gap-4 mt-3 text-xs text-muted-foreground">
+        <div className="flex flex-wrap gap-3 mt-3 text-xs">
           {(["Easy", "Medium", "Hard"] as Difficulty[]).map((d) => {
             const total = sheet.questions.filter((q) => q.difficulty === d).length;
             const done = sheet.questions.filter(
               (q) => q.difficulty === d && completedIds.has(q.id)
             ).length;
             return (
-              <span key={d} className={cn("font-medium", DIFF_COLORS[d], "px-2 py-0.5 rounded-md")}>
+              <span key={d} className={cn("font-medium px-2 py-0.5 rounded-md", DIFF_COLORS[d])}>
                 {d}: {done}/{total}
               </span>
             );
           })}
+          <span className="ml-auto text-muted-foreground font-medium px-2 py-0.5">
+            {questions.length - (questions.length - (sheet.questions.length - notImportedCount))} already in My Questions
+          </span>
         </div>
       </div>
 
+      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-2">
         <Input
           placeholder="Search questions..."
@@ -172,9 +303,7 @@ function SheetDetailView({
           <SelectContent>
             <SelectItem value="all">All Topics</SelectItem>
             {topics.map((t) => (
-              <SelectItem key={t} value={t}>
-                {t}
-              </SelectItem>
+              <SelectItem key={t} value={t}>{t}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -200,9 +329,10 @@ function SheetDetailView({
         </Button>
       </div>
 
+      {/* Question list grouped by topic */}
       <div className="space-y-6">
-        {Object.entries(groupedByTopic).map(([topic, questions]) => {
-          const doneInTopic = questions.filter((q) => completedIds.has(q.id)).length;
+        {Object.entries(groupedByTopic).map(([topic, qs]) => {
+          const doneInTopic = qs.filter((q) => completedIds.has(q.id)).length;
           return (
             <div key={topic}>
               <div className="flex items-center justify-between mb-2">
@@ -210,12 +340,13 @@ function SheetDetailView({
                   {topic}
                 </h3>
                 <span className="text-xs text-muted-foreground">
-                  {doneInTopic}/{questions.length}
+                  {doneInTopic}/{qs.length}
                 </span>
               </div>
               <div className="rounded-xl border bg-card divide-y divide-border overflow-hidden shadow-sm">
-                {questions.map((q) => {
+                {qs.map((q) => {
                   const done = completedIds.has(q.id);
+                  const inPersonal = isInPersonal(q.name);
                   return (
                     <div
                       key={q.id}
@@ -225,8 +356,9 @@ function SheetDetailView({
                       )}
                       data-testid={`row-question-${q.id}`}
                     >
+                      {/* Completion circle */}
                       <button
-                        onClick={() => toggleComplete(q.id)}
+                        onClick={() => handleToggle(q)}
                         className={cn(
                           "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
                           done
@@ -234,17 +366,32 @@ function SheetDetailView({
                             : "border-muted-foreground/40 hover:border-emerald-400"
                         )}
                         data-testid={`check-${q.id}`}
+                        title={done ? "Mark as pending" : "Mark as completed"}
                       >
                         {done && <CheckCircle2 className="h-3 w-3" />}
                       </button>
+
+                      {/* Name */}
                       <span
                         className={cn(
-                          "flex-1 text-sm font-medium",
+                          "flex-1 text-sm font-medium min-w-0 truncate",
                           done && "line-through text-muted-foreground"
                         )}
                       >
                         {q.name}
                       </span>
+
+                      {/* "In My Questions" badge */}
+                      {inPersonal && (
+                        <span
+                          className="text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-semibold shrink-0"
+                          title="Already in My Questions"
+                        >
+                          ✓ Saved
+                        </span>
+                      )}
+
+                      {/* Difficulty */}
                       <span
                         className={cn(
                           "text-[11px] px-2 py-0.5 rounded-md font-medium shrink-0",
@@ -253,6 +400,26 @@ function SheetDetailView({
                       >
                         {q.difficulty}
                       </span>
+
+                      {/* Add to personal (if not already there) */}
+                      {!inPersonal && (
+                        <button
+                          onClick={() => {
+                            addQuestion(sheetQuestionToPersonal(q));
+                            toast({
+                              title: "Added to My Questions",
+                              description: `"${q.name}" was added to your personal list.`,
+                            });
+                          }}
+                          className="text-muted-foreground hover:text-primary transition-colors shrink-0"
+                          title="Add to My Questions"
+                          data-testid={`add-personal-${q.id}`}
+                        >
+                          <PlusCircle className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+
+                      {/* External link */}
                       <a
                         href={q.link}
                         target="_blank"
@@ -280,6 +447,8 @@ function SheetDetailView({
   );
 }
 
+// ── Sheets (list view) ────────────────────────────────────────────────────────
+
 export function Sheets() {
   const [selectedSheet, setSelectedSheet] = useState<Sheet | null>(null);
   const stats = useAllSheetStats(SHEETS);
@@ -298,7 +467,8 @@ export function Sheets() {
       <div>
         <h2 className="text-3xl font-bold tracking-tight">DSA Sheets</h2>
         <p className="text-muted-foreground">
-          Track your progress through curated DSA problem sets.
+          Track your progress through curated problem sets. Marking a question
+          complete automatically adds it to your personal question list.
         </p>
       </div>
 
@@ -365,6 +535,7 @@ export function Sheets() {
         })}
       </div>
 
+      {/* Overall summary */}
       <div className="rounded-xl border bg-muted/30 p-5">
         <div className="flex items-center gap-2 mb-3">
           <BookOpen className="h-4 w-4 text-muted-foreground" />
@@ -384,6 +555,18 @@ export function Sheets() {
             );
           })}
         </div>
+      </div>
+
+      {/* Info callout */}
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 flex items-start gap-3">
+        <Sparkles className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+        <p className="text-sm text-muted-foreground">
+          <span className="text-foreground font-medium">Auto-import:</span> When you
+          mark a problem as completed inside a sheet, it is automatically added to your{" "}
+          <span className="font-medium text-foreground">All Questions</span> list —
+          pre-filled with the topic, platform, and a starting confidence rating. You
+          can then enrich it with your own notes and approach.
+        </p>
       </div>
     </div>
   );
